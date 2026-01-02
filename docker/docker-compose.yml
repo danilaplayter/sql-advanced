@@ -5,14 +5,13 @@ services:
     image: postgres:15-alpine
     container_name: mentee-postgres
     environment:
-      POSTGRES_DB: mentee_db
-      POSTGRES_USER: mentee
-      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: mentee_power_db
+      POSTGRES_USER: mentee_power
+      POSTGRES_PASSWORD: password
     ports:
       - "5432:5432"
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
-      - ../src/main/resources/sql:/docker-entrypoint-initdb.d:ro
 
   pgadmin:
     image: dpage/pgadmin4:latest
