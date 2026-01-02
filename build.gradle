@@ -1,64 +1,126 @@
 plugins {
 	id 'java'
-	id 'com.diffplug.spotless' version '6.23.3'
+	id 'org.liquibase.gradle' version '2.2.0'
 }
 
-ext {
-	versions = [
-			spotless          : '6.23.3',
-
-			postgresql        : '42.6.0',
-			lombok           : '1.18.30',
-
-			slf4j            : '2.0.9',
-			logback          : '1.4.11',
-
-			junit            : '5.10.0',
-			assertj          : '3.24.2',
-
-			googleJavaFormat : '1.17.0'
-	]
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
 }
 
-group = 'ru.mentee.power'
-version = '1.0.0'
-sourceCompatibility = JavaVersion.VERSION_21
-targetCompatibility = JavaVersion.VERSION_21
 repositories {
 	mavenCentral()
 }
 
 dependencies {
-	implementation "org.postgresql:postgresql:${versions.postgresql}"
+	// Lombok для аннотаций
+	compileOnly 'org.projectlombok:lombok:1.18.30'
+	annotationProcessor 'org.projectlombok:lombok:1.18.30'
+	testCompileOnly 'org.projectlombok:lombok:1.18.30'
+	testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
-	compileOnly "org.projectlombok:lombok:${versions.lombok}"
-	annotationProcessor "org.projectlombok:lombok:${versions.lombok}"
-	testCompileOnly "org.projectlombok:lombok:${versions.lombok}"
-	testAnnotationProcessor "org.projectlombok:lombok:${versions.lombok}"
+	// База данных
+	implementation 'org.postgresql:postgresql:42.6.0'
 
-	implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-	implementation "ch.qos.logback:logback-classic:${versions.logback}"
-	implementation "ch.qos.logback:logback-core:${versions.logback}"
+	// Liquibase
+	implementation 'org.liquibase:liquibase-core:4.24.0'
+	liquibaseRuntime 'org.liquibase:liquibase-core:4.24.0'
+	liquibaseRuntime 'org.postgresql:postgresql:42.6.0'
+	liquibaseRuntime 'info.picocli:picocli:4.6.3'
 
-	testImplementation "org.junit.jupiter:junit-jupiter:${versions.junit}"
-	testImplementation "org.assertj:assertj-core:${versions.assertj}"
+	// TestContainers - ИМЕННО ТАКИЕ ЗАВИСИМОСТИ
+	testImplementation 'org.testcontainers:testcontainers:1.19.3'
+	testImplementation 'org.testcontainers:postgresql:1.19.3'
+	testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
+
+	// Тестирование
+	testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+	testImplementation 'org.assertj:assertj-core:3.24.2'
+
+	// Логирование
+	implementation 'ch.qos.logback:logback-classic:1.4.12'
 }
 
-spotless {
-	format 'misc', {
-		target '*.gradle', '.gitattributes', '.gitignore'
-		trimTrailingWhitespace()
-		indentWithTabs()
-		endWithNewline()
+// Конфигурация Liquibase
+liquibase {
+	activities {
+		main {
+			changeLogFile 'src/main/resources/db/changelog.yaml'
+			url 'jdbc:postgresql://localhost:5432/mentee_power_db'
+			username 'mentee_power'
+			password System.getenv('DB_PASSWORD') ?: 'password'
+			driver 'org.postgresql.Driver'
+			defaultSchemaName 'mentee_power'
+			contexts 'dev,default'
+		}
+
+		test {
+			changeLogFile 'src/main/resources/db/changelog.yaml'
+			url 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+			username 'mentee_power'
+			password System.getenv('DB_PASSWORD') ?: 'password'
+			driver 'org.postgresql.Driver'
+			defaultSchemaName 'mentee_power'
+			contexts 'test,default'
+		}
+
+		prod {
+			changeLogFile 'src/main/resources/db/changelog.yaml'
+			url System.getenv('PROD_DB_URL') ?: 'jdbc:postgresql://localhost:5432/mentee_power_prod'
+			username System.getenv('PROD_DB_USER') ?: 'mentee_power'
+			password System.getenv('PROD_DB_PASSWORD')
+			driver 'org.postgresql.Driver'
+			defaultSchemaName 'mentee_power'
+			contexts 'prod,default'
+		}
 	}
-	java {
-		googleJavaFormat("${versions.googleJavaFormat}").aosp().reflowLongStrings().skipJavadocFormatting()
-		formatAnnotations()
-		licenseHeader '/* @MENTEE_POWER (C)$YEAR */'
+
+	runList = project.ext.properties.containsKey('runList') ? project.ext.runList : 'main'
+}
+
+// Задачи Liquibase
+task liquibaseUpdateDev {
+	group = 'liquibase'
+	description = 'Применить миграции к dev БД'
+	doLast {
+		liquibase.runList = 'main'
+		tasks.named('update').execute()
 	}
 }
 
+task liquibaseUpdateTest {
+	group = 'liquibase'
+	description = 'Применить миграции к тестовой БД'
+	doLast {
+		liquibase.runList = 'test'
+		tasks.named('update').execute()
+	}
+}
+
+task liquibaseUpdateProd {
+	group = 'liquibase'
+	description = 'Применить миграции к production БД'
+	doLast {
+		liquibase.runList = 'prod'
+		tasks.named('update').execute()
+	}
+}
 
 test {
 	useJUnitPlatform()
+	dependsOn 'liquibaseUpdateTest'
+
+	systemProperty 'DB_URL', 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+	systemProperty 'DB_USER', 'mentee_power'
+	systemProperty 'DB_PASSWORD', System.getenv('DB_PASSWORD') ?: 'password'
+}
+
+// Кодировка
+tasks.withType(JavaCompile) {
+	options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test) {
+	systemProperty "file.encoding", "UTF-8"
 }
