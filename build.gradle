@@ -28,8 +28,9 @@ dependencies {
 	liquibaseRuntime 'org.liquibase:liquibase-core:4.24.0'
 	liquibaseRuntime 'org.postgresql:postgresql:42.6.0'
 	liquibaseRuntime 'info.picocli:picocli:4.6.3'
+	liquibaseRuntime 'ch.qos.logback:logback-classic:1.4.12'
 
-	// TestContainers - ИМЕННО ТАКИЕ ЗАВИСИМОСТИ
+	// TestContainers
 	testImplementation 'org.testcontainers:testcontainers:1.19.3'
 	testImplementation 'org.testcontainers:postgresql:1.19.3'
 	testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
@@ -40,80 +41,106 @@ dependencies {
 
 	// Логирование
 	implementation 'ch.qos.logback:logback-classic:1.4.12'
+
+	// Для парсинга JSON из EXPLAIN ANALYZE
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 }
 
 // Конфигурация Liquibase
 liquibase {
 	activities {
 		main {
-			changeLogFile 'src/main/resources/db/changelog.yaml'
+			changelogFile 'src/main/resources/db/changelog.yaml'
 			url 'jdbc:postgresql://localhost:5432/mentee_power_db'
 			username 'mentee_power'
 			password System.getenv('DB_PASSWORD') ?: 'password'
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			contexts 'dev,default'
+			logLevel 'info'
 		}
 
 		test {
-			changeLogFile 'src/main/resources/db/changelog.yaml'
+			changelogFile 'src/main/resources/db/changelog.yaml'
 			url 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
 			username 'mentee_power'
 			password System.getenv('DB_PASSWORD') ?: 'password'
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			contexts 'test,default'
+			logLevel 'info'
 		}
 
 		prod {
-			changeLogFile 'src/main/resources/db/changelog.yaml'
+			changelogFile 'src/main/resources/db/changelog.yaml'
 			url System.getenv('PROD_DB_URL') ?: 'jdbc:postgresql://localhost:5432/mentee_power_prod'
 			username System.getenv('PROD_DB_USER') ?: 'mentee_power'
 			password System.getenv('PROD_DB_PASSWORD')
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			contexts 'prod,default'
+			logLevel 'warn'
 		}
 	}
-
-	runList = project.ext.properties.containsKey('runList') ? project.ext.runList : 'main'
+	runList = 'main'
 }
 
-// Задачи Liquibase
-task liquibaseUpdateDev {
-	group = 'liquibase'
+// Задачи Liquibase (ИСПРАВЛЕННЫЙ СИНТАКСИС)
+task liquibaseUpdateDev(group: 'liquibase') {
 	description = 'Применить миграции к dev БД'
 	doLast {
+		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_db'
 		liquibase.runList = 'main'
-		tasks.named('update').execute()
+		update.dependsOn = []
+		update.execute()
 	}
 }
 
-task liquibaseUpdateTest {
-	group = 'liquibase'
+task liquibaseUpdateTest(group: 'liquibase') {
 	description = 'Применить миграции к тестовой БД'
 	doLast {
-		liquibase.runList = 'test'
-		tasks.named('update').execute()
+		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+		liquibase.runList = 'main'
+		update.dependsOn = []
+		update.execute()
 	}
 }
 
-task liquibaseUpdateProd {
-	group = 'liquibase'
-	description = 'Применить миграции к production БД'
+task liquibaseRollbackTest(group: 'liquibase') {
+	description = 'Откатить все изменения в тестовой БД'
 	doLast {
-		liquibase.runList = 'prod'
-		tasks.named('update').execute()
+		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+		liquibase.runList = 'main'
+		rollbackCount.dependsOn = []
+		rollbackCount.execute()
+	}
+}
+
+task liquibaseStatusTest(group: 'liquibase') {
+	description = 'Показать статус миграций в тестовой БД'
+	doLast {
+		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+		liquibase.runList = 'main'
+		status.dependsOn = []
+		status.execute()
 	}
 }
 
 test {
 	useJUnitPlatform()
-	dependsOn 'liquibaseUpdateTest'
 
-	systemProperty 'DB_URL', 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
-	systemProperty 'DB_USER', 'mentee_power'
-	systemProperty 'DB_PASSWORD', System.getenv('DB_PASSWORD') ?: 'password'
+	// Используем TestContainers вместо локальной БД
+	testLogging {
+		events "passed", "skipped", "failed"
+		showStandardStreams = true
+	}
+
+	systemProperty "java.util.logging.config.file",
+			"${projectDir}/src/test/resources/logging-test.properties"
+
+	// Опционально: можете настроить тесты для работы с TestContainers
+	// и выполнять Liquibase миграции перед тестами
+	doFirst {
+		// Эта часть будет выполнена когда у вас есть контейнер
+		println "Настройка тестовой среды..."
+	}
 }
 
 // Кодировка
@@ -123,4 +150,29 @@ tasks.withType(JavaCompile) {
 
 tasks.withType(Test) {
 	systemProperty "file.encoding", "UTF-8"
+}
+
+// Дополнительные задачи для удобства
+task setupDevDb {
+	group = 'database'
+	description = 'Настроить dev базу данных (создать, применить миграции)'
+	dependsOn 'liquibaseUpdateDev'
+}
+
+task setupTestDb {
+	group = 'database'
+	description = 'Настроить test базу данных (создать, применить миграции)'
+	dependsOn 'liquibaseUpdateTest'
+}
+
+task cleanTestDb {
+	group = 'database'
+	description = 'Очистить тестовую базу данных'
+	dependsOn 'liquibaseRollbackTest'
+}
+
+task showTestDbStatus {
+	group = 'database'
+	description = 'Показать статус тестовой базы данных'
+	dependsOn 'liquibaseStatusTest'
 }
