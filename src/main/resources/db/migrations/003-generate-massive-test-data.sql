@@ -1,82 +1,159 @@
--- src/main/resources/db/migrations/003-generate-massive-test-data.sql
---liquibase formatted sql
---changeset mp161:generate-massive-test-data
-
--- Генерация 50,000 пользователей для демонстрации производительности
-INSERT INTO users (name, email, city, registration_date, is_active)
+-- Генерация 100,000 пользователей с реалистичными данными
+INSERT INTO users (email, first_name, last_name, phone, city, registration_date, is_active, status)
 SELECT
-    'User ' || generate_series,
-    'user' || generate_series || '@example.com',
-    CASE (random() * 4)::int
+    'user' || generate_series || '@domain' || (generate_series % 10) || '.com',
+    'FirstName' || generate_series,
+    'LastName' || generate_series,
+    '+7' || LPAD((9000000000 + generate_series)::text, 10, '0'),
+    CASE (generate_series % 20)
         WHEN 0 THEN 'Moscow'
-        WHEN 1 THEN 'SPB'
-        WHEN 2 THEN 'Ekaterinburg'
-        WHEN 3 THEN 'Novosibirsk'
-        ELSE 'Kazan'
+        WHEN 1 THEN 'Saint Petersburg'
+        WHEN 2 THEN 'Novosibirsk'
+        WHEN 3 THEN 'Ekaterinburg'
+        WHEN 4 THEN 'Kazan'
+        WHEN 5 THEN 'Nizhny Novgorod'
+        WHEN 6 THEN 'Chelyabinsk'
+        WHEN 7 THEN 'Samara'
+        WHEN 8 THEN 'Omsk'
+        WHEN 9 THEN 'Rostov-on-Don'
+        WHEN 10 THEN 'Ufa'
+        WHEN 11 THEN 'Krasnoyarsk'
+        WHEN 12 THEN 'Voronezh'
+        WHEN 13 THEN 'Perm'
+        WHEN 14 THEN 'Volgograd'
+        WHEN 15 THEN 'Krasnodar'
+        WHEN 16 THEN 'Saratov'
+        WHEN 17 THEN 'Tyumen'
+        WHEN 18 THEN 'Tolyatti'
+        ELSE 'Izhevsk'
     END,
-    NOW() - (random() * interval '365 days'),
-    random() > 0.1  -- 90% активных пользователей
-FROM generate_series(1, 50000);
-
--- Иерархия категорий
-INSERT INTO categories (name, parent_id) VALUES
-('Электроника', NULL),
-('Книги', NULL),
-('Одежда', NULL),
-('Ноутбуки', 1),
-('Смартфоны', 1),
-('Планшеты', 1),
-('Художественная литература', 2),
-('Техническая литература', 2),
-('Мужская одежда', 3),
-('Женская одежда', 3);
-
--- 100,000 товаров
-INSERT INTO products (name, description, price, category_id, sku, created_at)
-SELECT
-    'Product ' || generate_series,
-    'Description for product ' || generate_series || ' with lots of details about features and benefits',
-    (random() * 99999 + 1)::decimal(10,2),
-    (random() * 10 + 1)::bigint,
-    'SKU-' || LPAD(generate_series::text, 8, '0'),
-    NOW() - (random() * interval '365 days')
+    NOW() - (random() * interval '3 years'),
+    random() > 0.05, -- 95% активных
+    CASE
+        WHEN random() > 0.1 THEN 'ACTIVE'
+        WHEN random() > 0.02 THEN 'SUSPENDED'
+        ELSE 'BLOCKED'
+    END
 FROM generate_series(1, 100000);
 
--- 200,000 заказов
-INSERT INTO orders (user_id, total, status, created_at, region)
+-- Генерация 300,000 заказов с различными статусами
+INSERT INTO orders (user_id, total_amount, status, payment_method, created_at, updated_at, delivery_address)
 SELECT
-    (random() * 50000 + 1)::bigint,
-    (random() * 5000 + 10)::decimal(10,2),
-    CASE (random() * 4)::int
+    (random() * 100000 + 1)::bigint,
+    (random() * 5000 + 50)::decimal(10,2),
+    CASE (random() * 6)::int
         WHEN 0 THEN 'PENDING'
         WHEN 1 THEN 'CONFIRMED'
-        WHEN 2 THEN 'SHIPPED'
-        ELSE 'DELIVERED'
+        WHEN 2 THEN 'PROCESSING'
+        WHEN 3 THEN 'SHIPPED'
+        WHEN 4 THEN 'DELIVERED'
+        ELSE 'CANCELLED'
     END,
-    NOW() - (random() * interval '365 days'),
     CASE (random() * 4)::int
-        WHEN 0 THEN 'MOSCOW'
-        WHEN 1 THEN 'SPB'
-        WHEN 2 THEN 'EKATERINBURG'
-        WHEN 3 THEN 'NOVOSIBIRSK'
-        ELSE 'KAZAN'
-    END
-FROM generate_series(1, 200000);
+        WHEN 0 THEN 'CREDIT_CARD'
+        WHEN 1 THEN 'DEBIT_CARD'
+        WHEN 2 THEN 'PAYPAL'
+        ELSE 'BANK_TRANSFER'
+    END,
+    NOW() - (random() * interval '2 years'),
+    NOW() - (random() * interval '1 year'),
+    'Address ' || generate_series || ', City, Country'
+FROM generate_series(1, 300000);
 
--- 800,000 позиций в заказах
-INSERT INTO order_items (order_id, product_id, quantity, price)
+-- Генерация 50,000 товаров с JSON данными для демонстрации GIN
+INSERT INTO products (name, sku, price, category_id, stock_quantity, status, created_at, description, specifications)
 SELECT
-    (random() * 200000 + 1)::bigint,
-    (random() * 100000 + 1)::bigint,
-    (random() * 5 + 1)::int,
-    (random() * 999 + 1)::decimal(10,2)
-FROM generate_series(1, 800000);
+    CASE (generate_series % 10)
+        WHEN 0 THEN 'Смартфон Apple iPhone'
+        WHEN 1 THEN 'Ноутбук Lenovo ThinkPad'
+        WHEN 2 THEN 'Планшет Samsung Galaxy Tab'
+        WHEN 3 THEN 'Наушники Sony WH-1000XM'
+        WHEN 4 THEN 'Умные часы Apple Watch'
+        WHEN 5 THEN 'Игровая консоль PlayStation'
+        WHEN 6 THEN 'Телевизор LG OLED'
+        WHEN 7 THEN 'Фотоаппарат Canon EOS'
+        WHEN 8 THEN 'Колонка JBL Charge'
+        ELSE 'Роутер TP-Link Archer'
+    END || ' ' || generate_series,
+    'SKU-' || LPAD(generate_series::text, 8, '0'),
+    (random() * 2000 + 10)::decimal(10,2),
+    (random() * 10 + 1)::bigint,
+    (random() * 1000)::int,
+    CASE
+        WHEN random() > 0.2 THEN 'ACTIVE'
+        WHEN random() > 0.05 THEN 'OUT_OF_STOCK'
+        ELSE 'DISCONTINUED'
+    END,
+    NOW() - (random() * interval '1 year'),
+    'Детальное описание товара ' || generate_series || ' с множеством характеристик и преимуществ. Высокое качество, надежность, гарантия производителя.',
+    jsonb_build_object(
+        'brand', CASE (generate_series % 5)
+            WHEN 0 THEN 'Apple'
+            WHEN 1 THEN 'Samsung'
+            WHEN 2 THEN 'Sony'
+            WHEN 3 THEN 'LG'
+            ELSE 'Xiaomi'
+        END,
+        'color', CASE (generate_series % 4)
+            WHEN 0 THEN 'black'
+            WHEN 1 THEN 'white'
+            WHEN 2 THEN 'silver'
+            ELSE 'gold'
+        END,
+        'weight', (random() * 2000 + 100)::int,
+        'features', ARRAY['waterproof', 'wireless', 'fast-charging', 'hd-display'],
+        'warranty_years', (random() * 3 + 1)::int,
+        'energy_rating', CASE (generate_series % 5)
+            WHEN 0 THEN 'A++'
+            WHEN 1 THEN 'A+'
+            WHEN 2 THEN 'A'
+            WHEN 3 THEN 'B'
+            ELSE 'C'
+        END
+    )
+FROM generate_series(1, 50000);
 
--- Обновляем статистику для точных планов выполнения
+-- Демонстрация различных типов индексов
+-- 1. B-Tree индексы (основной фокус урока)
+CREATE INDEX idx_products_price_btree ON products(price);
+CREATE INDEX idx_products_category_status ON products(category_id, status);
+
+-- 2. GIN индекс для полнотекстового поиска
+CREATE INDEX idx_products_description_gin ON products USING gin(to_tsvector('russian', description));
+
+-- 3. GIN индекс для JSON данных
+CREATE INDEX idx_products_specifications_gin ON products USING gin(specifications);
+
+-- 4. GIN индекс для подстрок (требует расширение pg_trgm)
+-- CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- CREATE INDEX idx_products_name_trgm ON products USING gin(name gin_trgm_ops);
+
+-- 5. Функциональный B-Tree индекс
+CREATE INDEX idx_products_name_lower ON products(LOWER(name));
+
+-- 6. Частичный B-Tree индекс
+CREATE INDEX idx_products_active_price ON products(price) WHERE status = 'ACTIVE';
+
+-- Примеры запросов для демонстрации разных индексов:
+
+-- B-Tree: диапазон цен
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE price BETWEEN 500 AND 1000;
+
+-- GIN: полнотекстовый поиск
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE to_tsvector('russian', description) @@ to_tsquery('russian', 'смартфон');
+
+-- GIN: JSON запросы
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE specifications->>'brand' = 'Apple';
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE specifications->'features' ? 'waterproof';
+
+-- Функциональный индекс
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE LOWER(name) = 'смартфон apple iphone 1000';
+
+-- Частичный индекс
+-- EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM products WHERE status = 'ACTIVE' AND price > 1000;
+
+-- Обновляем статистику для точного планирования
 ANALYZE users;
-ANALYZE categories;
-ANALYZE products;
 ANALYZE orders;
-ANALYZE order_items;
-
---rollback DELETE FROM order_items; DELETE FROM orders; DELETE FROM products; DELETE FROM categories; DELETE FROM users WHERE id > 0;
+ANALYZE products;
+ANALYZE categories;

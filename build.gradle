@@ -20,6 +20,12 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok:1.18.30'
 	testAnnotationProcessor 'org.projectlombok:lombok:1.18.30'
 
+	// Jackson для работы с JSON
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.3'
+	implementation 'com.fasterxml.jackson.core:jackson-core:2.15.3'
+	implementation 'com.fasterxml.jackson.core:jackson-annotations:2.15.3'
+	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.3' // для поддержки Java 8 Date/Time API
+
 	// База данных
 	implementation 'org.postgresql:postgresql:42.6.0'
 
@@ -28,9 +34,8 @@ dependencies {
 	liquibaseRuntime 'org.liquibase:liquibase-core:4.24.0'
 	liquibaseRuntime 'org.postgresql:postgresql:42.6.0'
 	liquibaseRuntime 'info.picocli:picocli:4.6.3'
-	liquibaseRuntime 'ch.qos.logback:logback-classic:1.4.12'
 
-	// TestContainers
+	// TestContainers - ИМЕННО ТАКИЕ ЗАВИСИМОСТИ
 	testImplementation 'org.testcontainers:testcontainers:1.19.3'
 	testImplementation 'org.testcontainers:postgresql:1.19.3'
 	testImplementation 'org.testcontainers:junit-jupiter:1.19.3'
@@ -41,106 +46,127 @@ dependencies {
 
 	// Логирование
 	implementation 'ch.qos.logback:logback-classic:1.4.12'
-
-	// Для парсинга JSON из EXPLAIN ANALYZE
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 }
 
 // Конфигурация Liquibase
 liquibase {
 	activities {
 		main {
-			changelogFile 'src/main/resources/db/changelog.yaml'
+			changeLogFile 'src/main/resources/db/changelog.yaml'
 			url 'jdbc:postgresql://localhost:5432/mentee_power_db'
 			username 'mentee_power'
 			password System.getenv('DB_PASSWORD') ?: 'password'
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			logLevel 'info'
+			contexts 'dev,default'
 		}
 
 		test {
-			changelogFile 'src/main/resources/db/changelog.yaml'
+			changeLogFile 'src/main/resources/db/changelog.yaml'
 			url 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
 			username 'mentee_power'
 			password System.getenv('DB_PASSWORD') ?: 'password'
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			logLevel 'info'
+			contexts 'test,default'
 		}
 
 		prod {
-			changelogFile 'src/main/resources/db/changelog.yaml'
+			changeLogFile 'src/main/resources/db/changelog.yaml'
 			url System.getenv('PROD_DB_URL') ?: 'jdbc:postgresql://localhost:5432/mentee_power_prod'
 			username System.getenv('PROD_DB_USER') ?: 'mentee_power'
 			password System.getenv('PROD_DB_PASSWORD')
 			driver 'org.postgresql.Driver'
 			defaultSchemaName 'mentee_power'
-			logLevel 'warn'
+			contexts 'prod,default'
 		}
 	}
-	runList = 'main'
+
+	runList = project.ext.properties.containsKey('runList') ? project.ext.runList : 'main'
 }
 
-// Задачи Liquibase (ИСПРАВЛЕННЫЙ СИНТАКСИС)
-task liquibaseUpdateDev(group: 'liquibase') {
+// Задачи Liquibase
+task liquibaseUpdateDev {
+	group = 'liquibase'
 	description = 'Применить миграции к dev БД'
 	doLast {
-		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_db'
 		liquibase.runList = 'main'
-		update.dependsOn = []
-		update.execute()
+		tasks.named('update').execute()
 	}
 }
 
-task liquibaseUpdateTest(group: 'liquibase') {
+task liquibaseUpdateTest {
+	group = 'liquibase'
 	description = 'Применить миграции к тестовой БД'
+
+}
+
+
+// Задачи Liquibase для отката
+task liquibaseRollbackDev {
+	group = 'liquibase'
+	description = 'Откатить миграции в dev БД'
+
+	doFirst {
+		if (!project.hasProperty('rollbackCount')) {
+			throw new GradleException('Необходимо указать количество изменений для отката: -ProllbackCount=N')
+		}
+	}
+
 	doLast {
-		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
 		liquibase.runList = 'main'
-		update.dependsOn = []
-		update.execute()
+		liquibase.activities.main.command = 'rollbackCount'
+		liquibase.activities.main.rollbackCount = project.property('rollbackCount')
+		tasks.named('update').execute()
 	}
 }
 
-task liquibaseRollbackTest(group: 'liquibase') {
-	description = 'Откатить все изменения в тестовой БД'
+task liquibaseRollbackTest {
+	group = 'liquibase'
+	description = 'Откатить миграции в тестовой БД'
+
+	doFirst {
+		if (!project.hasProperty('rollbackCount')) {
+			throw new GradleException('Необходимо указать количество изменений для отката: -ProllbackCount=N')
+		}
+	}
+
 	doLast {
-		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
-		liquibase.runList = 'main'
-		rollbackCount.dependsOn = []
-		rollbackCount.execute()
+		liquibase.runList = 'test'
+		liquibase.activities.test.command = 'rollbackCount'
+		liquibase.activities.test.rollbackCount = project.property('rollbackCount')
+		tasks.named('update').execute()
 	}
 }
 
-task liquibaseStatusTest(group: 'liquibase') {
-	description = 'Показать статус миграций в тестовой БД'
+task liquibaseRollbackProd {
+	group = 'liquibase'
+	description = 'Откатить миграции в production БД'
+
+	doFirst {
+		if (!project.hasProperty('rollbackCount')) {
+			throw new GradleException('Необходимо указать количество изменений для отката: -ProllbackCount=N')
+		}
+		if (!System.getenv('PROD_DB_PASSWORD')) {
+			throw new GradleException('PROD_DB_PASSWORD не установлен в переменных окружения')
+		}
+	}
+
 	doLast {
-		liquibase.activities.main.url = 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
-		liquibase.runList = 'main'
-		status.dependsOn = []
-		status.execute()
+		liquibase.runList = 'prod'
+		liquibase.activities.prod.command = 'rollbackCount'
+		liquibase.activities.prod.rollbackCount = project.property('rollbackCount')
+		tasks.named('update').execute()
 	}
 }
 
 test {
 	useJUnitPlatform()
+	dependsOn 'liquibaseUpdateTest'
 
-	// Используем TestContainers вместо локальной БД
-	testLogging {
-		events "passed", "skipped", "failed"
-		showStandardStreams = true
-	}
-
-	systemProperty "java.util.logging.config.file",
-			"${projectDir}/src/test/resources/logging-test.properties"
-
-	// Опционально: можете настроить тесты для работы с TestContainers
-	// и выполнять Liquibase миграции перед тестами
-	doFirst {
-		// Эта часть будет выполнена когда у вас есть контейнер
-		println "Настройка тестовой среды..."
-	}
+	systemProperty 'DB_URL', 'jdbc:postgresql://localhost:5432/mentee_power_test_db'
+	systemProperty 'DB_USER', 'mentee_power'
+	systemProperty 'DB_PASSWORD', System.getenv('DB_PASSWORD') ?: 'password'
 }
 
 // Кодировка
@@ -150,29 +176,4 @@ tasks.withType(JavaCompile) {
 
 tasks.withType(Test) {
 	systemProperty "file.encoding", "UTF-8"
-}
-
-// Дополнительные задачи для удобства
-task setupDevDb {
-	group = 'database'
-	description = 'Настроить dev базу данных (создать, применить миграции)'
-	dependsOn 'liquibaseUpdateDev'
-}
-
-task setupTestDb {
-	group = 'database'
-	description = 'Настроить test базу данных (создать, применить миграции)'
-	dependsOn 'liquibaseUpdateTest'
-}
-
-task cleanTestDb {
-	group = 'database'
-	description = 'Очистить тестовую базу данных'
-	dependsOn 'liquibaseRollbackTest'
-}
-
-task showTestDbStatus {
-	group = 'database'
-	description = 'Показать статус тестовой базы данных'
-	dependsOn 'liquibaseStatusTest'
 }

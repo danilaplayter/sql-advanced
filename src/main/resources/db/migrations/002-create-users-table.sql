@@ -3,43 +3,42 @@
 --changeset mp161:create-tables
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    city VARCHAR(50),
-    registration_date TIMESTAMP DEFAULT NOW(),
-    is_active BOOLEAN DEFAULT true
-);
-
-CREATE TABLE categories (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    parent_id BIGINT REFERENCES categories(id)
-);
-
-CREATE TABLE products (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(200) NOT NULL,
-    description TEXT,
-    price DECIMAL(10,2) NOT NULL,
-    category_id BIGINT REFERENCES categories(id),
-    sku VARCHAR(50) UNIQUE,
-    created_at TIMESTAMP DEFAULT NOW()
+    email VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    phone VARCHAR(20),
+    city VARCHAR(100),
+    registration_date TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    status VARCHAR(50)
 );
 
 CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES users(id),
-    total DECIMAL(10,2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'PENDING',
-    created_at TIMESTAMP DEFAULT NOW(),
-    region VARCHAR(50) DEFAULT 'MOSCOW'
+    user_id BIGINT REFERENCES users(id),
+    total_amount DECIMAL(10,2),
+    status VARCHAR(50),
+    payment_method VARCHAR(50),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    delivery_address TEXT
 );
 
-CREATE TABLE order_items (
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(200) NOT NULL
+);
+
+CREATE TABLE products (
     id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL REFERENCES orders(id),
-    product_id BIGINT NOT NULL REFERENCES products(id),
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
-    price DECIMAL(10,2) NOT NULL
+    name VARCHAR(500) NOT NULL,
+    sku VARCHAR(100),
+    price DECIMAL(10,2),
+    category_id INT REFERENCES categories(id),
+    stock_quantity INT,
+    status VARCHAR(50),
+    created_at TIMESTAMP,
+    description TEXT,
+    specifications JSONB
 );
 --rollback DROP TABLE order_items; DROP TABLE orders; DROP TABLE products; DROP TABLE categories; DROP TABLE users;
