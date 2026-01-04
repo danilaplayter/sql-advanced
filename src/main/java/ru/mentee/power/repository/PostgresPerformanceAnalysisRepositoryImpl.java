@@ -1,12 +1,10 @@
 package ru.mentee.power.repository;
 
-import ru.mentee.power.repository.PerformanceAnalysisRepository;
 import ru.mentee.power.model.analytics.*;
 import ru.mentee.power.exception.DataAccessException;
 import ru.mentee.power.config.ApplicationConfig;
 import ru.mentee.power.config.ConfigFilePath;
 
-import javax.sql.DataSource;
 import java.sql.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: mentee_power_db
       POSTGRES_USER: mentee_power
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: password123
     ports:
       - "5432:5432"
     volumes:
