@@ -1,15 +1,24 @@
-package ru.mentee.power.repository;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import ru.mentee.power.exception.*;
-import ru.mentee.power.model.acid.*;
+package ru.mentee.power.service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ru.mentee.power.exception.BusinessException;
+import ru.mentee.power.exception.DataAccessException;
+import ru.mentee.power.exception.InsufficientFundsException;
+import ru.mentee.power.exception.ProductNotAvailableException;
+import ru.mentee.power.model.acid.BrokenTransactionResult;
+import ru.mentee.power.model.acid.ConsistencyViolationResult;
+import ru.mentee.power.model.acid.MoneyTransferResult;
+import ru.mentee.power.model.acid.OrderCancellationResult;
+import ru.mentee.power.model.acid.OrderCreationResult;
+import ru.mentee.power.model.acid.OrderItemRequest;
+import ru.mentee.power.model.acid.TransactionHistory;
+import ru.mentee.power.repository.AcidTransactionRepository;
 
 @Slf4j
 @Service
@@ -29,11 +38,13 @@ public class AcidTransactionServiceImpl implements AcidTransactionService {
 
     try {
       return repository.executeAtomicMoneyTransfer(fromAccountId, toAccountId, amount, description);
+    } catch (InsufficientFundsException e) {
+      log.warn("Insufficient funds for transfer from {} to {} amount {}",
+          fromAccountId, toAccountId, amount);
+      throw e;
     } catch (DataAccessException e) {
-      if (e.getMessage().contains("Insufficient funds")) {
-        throw new InsufficientFundsException(e.getMessage());
-      }
-      throw new BusinessException("Transfer failed: " + e.getMessage(), e);
+      log.error("Database error during transfer", e);
+      throw new BusinessException("Transfer failed", e);
     }
   }
 
