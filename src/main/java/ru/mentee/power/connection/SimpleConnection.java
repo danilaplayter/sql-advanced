@@ -21,11 +21,9 @@ public class SimpleConnection {
         System.out.println("🔍 Тестируем подключение к PostgreSQL...");
 
         try {
-            // Подключаемся к БД
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
             System.out.println("✅ Соединение установлено!");
 
-            // Выполняем простой запрос
             Statement statement = connection.createStatement();
             ResultSet resultSet =
                     statement.executeQuery("SELECT COUNT(*) as user_count FROM users");
@@ -35,7 +33,6 @@ public class SimpleConnection {
                 System.out.println("👥 Пользователей в базе: " + userCount);
             }
 
-            // Получаем версию PostgreSQL
             ResultSet versionResult = statement.executeQuery("SELECT version()");
             if (versionResult.next()) {
                 String version = versionResult.getString(1);
