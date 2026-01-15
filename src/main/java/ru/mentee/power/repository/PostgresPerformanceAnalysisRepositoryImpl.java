@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import ru.mentee.power.repository.interfaces.PerformanceAnalysisRepository;
 
 public class PostgresPerformanceAnalysisRepositoryImpl implements PerformanceAnalysisRepository {
 
