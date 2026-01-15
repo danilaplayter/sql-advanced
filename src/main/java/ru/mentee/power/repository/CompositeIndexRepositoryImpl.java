@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import ru.mentee.power.config.ApplicationConfig;
 import ru.mentee.power.exception.DataAccessException;
 import ru.mentee.power.model.analytics.*;
+import ru.mentee.power.repository.interfaces.CompositeIndexRepository;
 import ru.mentee.power.utils.QueryPlanParser;
 
 import java.math.BigDecimal;

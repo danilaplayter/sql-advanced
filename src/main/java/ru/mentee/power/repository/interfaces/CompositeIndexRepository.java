@@ -1,4 +1,4 @@
-package ru.mentee.power.repository;
+package ru.mentee.power.repository.interfaces;
 
 
 import ru.mentee.power.exception.DataAccessException;
